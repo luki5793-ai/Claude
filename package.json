@@ -1,0 +1,38 @@
+{
+  "name": "google-jobs-it-scraper",
+  "version": "1.0.0",
+  "description": "Production-ready Apify Actor for scraping IT jobs from Google Jobs in Germany",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "start": "npm run build && node dist/main.js",
+    "build": "tsc",
+    "dev": "tsx src/main.ts",
+    "lint": "eslint src --ext .ts",
+    "test": "echo \"Add tests here\" && exit 0"
+  },
+  "author": "Apify",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@apify/sdk": "^3.8.0",
+    "cheerio": "^1.0.0-rc.12",
+    "got-scraping": "^4.1.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "apify",
+    "scraper",
+    "google-jobs",
+    "job-scraper",
+    "it-jobs",
+    "germany"
+  ]
+}

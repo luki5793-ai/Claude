@@ -1,0 +1,60 @@
+{
+  "actorSpecification": 1,
+  "name": "google-jobs-it-scraper",
+  "title": "Google Jobs IT Scraper (Germany)",
+  "description": "Production-ready actor for scraping IT jobs from Google Jobs in Germany. Supports multiple search queries, locations, proxy rotation, and advanced filtering.",
+  "version": "1.0.0",
+  "meta": {
+    "templateId": "node-typescript"
+  },
+  "input": "./.actor/input_schema.json",
+  "dockerfile": "./Dockerfile",
+  "readme": "./README.md",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "title": "IT Jobs Dataset",
+      "views": {
+        "overview": {
+          "title": "Overview",
+          "transformation": {
+            "fields": [
+              "title",
+              "company",
+              "location",
+              "workType",
+              "salary",
+              "jobUrl",
+              "publishedDate"
+            ]
+          },
+          "display": {
+            "component": "table",
+            "properties": {
+              "title": {
+                "label": "Job Title",
+                "format": "text"
+              },
+              "company": {
+                "label": "Company",
+                "format": "text"
+              },
+              "location": {
+                "label": "Location",
+                "format": "text"
+              },
+              "workType": {
+                "label": "Work Type",
+                "format": "text"
+              },
+              "jobUrl": {
+                "label": "Job URL",
+                "format": "link"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,61 @@
+# This file specifies files and directories that should not be included in the Actor build
+
+# Development files
+.git
+.gitignore
+.editorconfig
+.idea
+.vscode
+
+# Node.js
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# TypeScript
+*.ts
+!*.d.ts
+tsconfig.json
+.tsbuildinfo
+
+# Testing
+coverage
+.nyc_output
+*.test.ts
+*.spec.ts
+__tests__
+test
+
+# Documentation (only exclude if not needed in production)
+# README.md  # Uncomment to exclude README
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build artifacts (keep dist for production)
+# dist  # Uncomment if building on Apify platform
+
+# Logs
+logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+*.swp
+*.swo
+*~
+
+# Apify local storage (when testing locally)
+apify_storage
+
+# Miscellaneous
+.eslintcache
+.prettierignore
+.prettierrc

@@ -1,0 +1,19 @@
+{
+  "searchQueries": [
+    "Software Developer",
+    "DevOps Engineer",
+    "IT-Sicherheit"
+  ],
+  "locations": [
+    "Berlin",
+    "München",
+    "Hamburg"
+  ],
+  "maxResults": 50,
+  "includeRemote": true,
+  "excludeWords": [],
+  "requestTimeout": 30000,
+  "maxRetries": 3,
+  "minDelayBetweenRequests": 1000,
+  "maxDelayBetweenRequests": 3000
+}

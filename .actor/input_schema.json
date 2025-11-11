@@ -1,0 +1,102 @@
+{
+  "title": "Google Jobs IT Scraper Input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "searchQueries": {
+      "title": "Search Queries",
+      "type": "array",
+      "description": "IT job search terms (e.g., 'IT-Sicherheit', 'DevOps Engineer', 'Software Developer')",
+      "editor": "stringList",
+      "default": ["Software Developer", "DevOps Engineer"],
+      "prefill": ["Software Developer", "DevOps Engineer", "IT-Sicherheit"],
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "locations": {
+      "title": "Locations",
+      "type": "array",
+      "description": "German cities/regions (e.g., 'Berlin', 'München', 'Remote')",
+      "editor": "stringList",
+      "default": ["Berlin", "München"],
+      "prefill": ["Berlin", "München", "Hamburg", "Köln", "Frankfurt"],
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "maxResults": {
+      "title": "Max Results per Query",
+      "type": "integer",
+      "description": "Maximum number of results to scrape per search query",
+      "default": 50,
+      "minimum": 10,
+      "maximum": 500,
+      "unit": "results"
+    },
+    "includeRemote": {
+      "title": "Include Remote Positions",
+      "type": "boolean",
+      "description": "Include remote/home office positions in results",
+      "default": true
+    },
+    "excludeWords": {
+      "title": "Exclude Words",
+      "type": "array",
+      "description": "Job titles containing these words will be filtered out",
+      "editor": "stringList",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "requestTimeout": {
+      "title": "Request Timeout",
+      "type": "integer",
+      "description": "HTTP request timeout in milliseconds",
+      "default": 30000,
+      "minimum": 5000,
+      "maximum": 120000,
+      "unit": "ms"
+    },
+    "maxRetries": {
+      "title": "Max Retries",
+      "type": "integer",
+      "description": "Maximum number of retry attempts for failed requests",
+      "default": 3,
+      "minimum": 1,
+      "maximum": 5
+    },
+    "proxyConfiguration": {
+      "title": "Proxy Configuration",
+      "type": "object",
+      "description": "Apify Proxy or custom proxy configuration",
+      "prefill": {
+        "useApifyProxy": true,
+        "apifyProxyGroups": ["RESIDENTIAL"]
+      },
+      "editor": "proxy"
+    },
+    "minDelayBetweenRequests": {
+      "title": "Min Delay Between Requests",
+      "type": "integer",
+      "description": "Minimum delay between requests in milliseconds",
+      "default": 1000,
+      "minimum": 500,
+      "maximum": 10000,
+      "unit": "ms"
+    },
+    "maxDelayBetweenRequests": {
+      "title": "Max Delay Between Requests",
+      "type": "integer",
+      "description": "Maximum delay between requests in milliseconds",
+      "default": 3000,
+      "minimum": 1000,
+      "maximum": 15000,
+      "unit": "ms"
+    }
+  },
+  "required": ["searchQueries", "locations"]
+}
