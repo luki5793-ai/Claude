@@ -1,9 +1,10 @@
 /**
- * Google Jobs IT Scraper - Main Entry Point
- * Production-ready Apify Actor for scraping IT jobs from Google Jobs in Germany
+ * German IT Jobs Scraper - Main Entry Point
+ * Production-ready Apify Actor for scraping IT jobs from multiple German job portals
+ * with contact enrichment for IT managers and HR decision-makers
  */
 
-import { Actor, log, ProxyConfiguration } from '@apify/sdk';
+import { Actor, log, ProxyConfiguration } from 'apify';
 import { InputSchema, type Input, type ScrapedJob, type CheckpointData } from './types.js';
 import { GoogleJobsScraper } from './scraper.js';
 import {
@@ -11,13 +12,22 @@ import {
     generateSearchQueries,
     formatDuration,
 } from './utils.js';
+import {
+    enrichJobWithContacts,
+    type ContactEnrichmentConfig,
+} from './contactEnricher.js';
+import {
+    exportToExcel,
+    exportToCSV,
+    generateExportSummary,
+} from './excelExporter.js';
 
 /**
  * Main actor handler
  */
 await Actor.main(async () => {
     // Initialize actor
-    log.info('🚀 Starting Google Jobs IT Scraper');
+    log.info('🚀 Starting German IT Jobs Scraper (Multi-Portal with Contact Enrichment)');
 
     // Get and validate input
     const rawInput = await Actor.getInput<Input>();
@@ -101,8 +111,8 @@ await Actor.main(async () => {
                 ? await proxyConfiguration.newUrl()
                 : undefined;
 
-            // Scrape jobs for this query
-            const jobs = await scraper.scrapeQuery(query, proxyUrl);
+            // Scrape jobs from all configured portals
+            const jobs = await scraper.scrapeAllPortals(query, proxyUrl);
 
             // Save jobs to dataset
             if (jobs.length > 0) {
@@ -151,6 +161,81 @@ await Actor.main(async () => {
     scraper.finalizeStats();
     const finalStats = scraper.getStats();
     const errors = scraper.getErrors();
+
+    // Contact enrichment phase
+    if (input.enableContactEnrichment && allJobs.length > 0) {
+        log.info('🔍 Starting contact enrichment phase...');
+
+        const contactConfig: ContactEnrichmentConfig = {
+            maxContactsPerCompany: input.maxContactsPerCompany,
+            timeout: input.requestTimeout,
+            enableWebScraping: true,
+            enableEmailGeneration: true,
+        };
+
+        // Get unique companies
+        const uniqueCompanies = Array.from(new Set(allJobs.map(job => job.company)));
+        log.info(`Enriching contacts for ${uniqueCompanies.length} unique companies...`);
+
+        let enrichedCount = 0;
+        for (const company of uniqueCompanies) {
+            try {
+                // Find all jobs for this company
+                const companyJobs = allJobs.filter(job => job.company === company);
+
+                // Enrich contact data
+                const { contacts, website } = await enrichJobWithContacts(company, contactConfig);
+
+                // Update all jobs for this company with contact data
+                for (const job of companyJobs) {
+                    job.contacts = contacts;
+                    job.companyWebsite = website;
+                }
+
+                if (contacts.length > 0) {
+                    enrichedCount++;
+                }
+
+                log.info(`Enriched ${enrichedCount}/${uniqueCompanies.length} companies`);
+
+                // Rate limiting to avoid overwhelming servers
+                await new Promise(resolve => setTimeout(resolve, 3000));
+
+            } catch (error) {
+                log.warning(`Failed to enrich contacts for ${company}`, { error });
+            }
+        }
+
+        log.info(`✅ Contact enrichment completed: ${enrichedCount}/${uniqueCompanies.length} companies enriched`);
+
+        // Update dataset with enriched jobs
+        const datasetClient = await Actor.openDataset();
+        await datasetClient.drop(); // Clear old data
+        await datasetClient.pushData(allJobs); // Push enriched data
+    }
+
+    // Export to Excel/CSV
+    log.info('📊 Generating Excel and CSV exports...');
+
+    try {
+        // Generate Excel file
+        const excelBuffer = exportToExcel(allJobs);
+        await kvStore.setValue('jobs_export.xlsx', excelBuffer, { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        log.info('✅ Excel export saved to key-value store: jobs_export.xlsx');
+
+        // Generate CSV file
+        const csvBuffer = exportToCSV(allJobs);
+        await kvStore.setValue('jobs_export.csv', csvBuffer, { contentType: 'text/csv' });
+        log.info('✅ CSV export saved to key-value store: jobs_export.csv');
+
+        // Generate export summary
+        const exportSummary = generateExportSummary(allJobs);
+        await kvStore.setValue('EXPORT_SUMMARY', exportSummary);
+        log.info('✅ Export summary saved');
+
+    } catch (error) {
+        log.error('Failed to generate exports', { error });
+    }
 
     // Log final statistics
     log.info('✅ Scraping completed!');
@@ -208,8 +293,12 @@ await Actor.main(async () => {
     // Clear checkpoint on successful completion
     await kvStore.setValue(checkpointKey, null);
 
-    // Log completion message
-    log.info(`🎉 Actor finished successfully! Scraped ${finalStats.totalJobsScraped} jobs in ${formatDuration(finalStats.durationMs || 0)}`);
+    // Log completion message with export info
+    log.info('🎉 Actor finished successfully!');
+    log.info(`📊 Results: ${finalStats.totalJobsScraped} jobs from ${input.jobPortals.join(', ')} portals`);
+    log.info(`📁 Exports: Excel and CSV files saved to key-value store`);
+    log.info(`⏱️ Duration: ${formatDuration(finalStats.durationMs || 0)}`);
+    log.info('💾 Download exports from the key-value store: jobs_export.xlsx, jobs_export.csv');
 });
 
 /**

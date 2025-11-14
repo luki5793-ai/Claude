@@ -2,7 +2,7 @@
  * Utility functions for the Google Jobs IT Scraper
  */
 
-import { log } from '@apify/sdk';
+import { log } from 'apify';
 import crypto from 'crypto';
 import type { Input, RetryConfig, ScraperError, SearchQuery } from './types.js';
 
