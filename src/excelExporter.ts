@@ -50,37 +50,37 @@ export function convertJobsToExcelRows(jobs: ScrapedJob[]): ExcelRow[] {
         const contact2 = job.contacts?.[1];
 
         const row: ExcelRow = {
-            'Job-Titel': job.title || 'N/A',
-            'Unternehmen': job.company || 'N/A',
-            'Standort': job.location || 'N/A',
-            'PLZ': job.postalCode || 'N/A',
+            'Job-Titel': job.title || '',
+            'Unternehmen': job.company || '',
+            'Standort': job.location || '',
+            'PLZ': job.postalCode || '',
 
-            // Contact 1
-            'Anrede IT-Leiter/Personalentscheider 1': contact1?.salutation || 'N/A',
-            'Vorname IT-Leiter/Personalentscheider 1': contact1?.firstName || 'N/A',
-            'Nachname IT-Leiter/Personalentscheider 1': contact1?.lastName || 'N/A',
-            'Email IT-Leiter/Personalentscheider 1': contact1?.email || 'N/A',
-            'Telefon IT-Leiter/Personalentscheider 1': contact1?.phone || 'N/A',
-            'Position IT-Leiter/Personalentscheider 1': contact1?.position || 'N/A',
+            // Contact 1 - Empty string if no real contact (no placeholders)
+            'Anrede IT-Leiter/Personalentscheider 1': contact1?.salutation || '',
+            'Vorname IT-Leiter/Personalentscheider 1': contact1?.firstName || '',
+            'Nachname IT-Leiter/Personalentscheider 1': contact1?.lastName || '',
+            'Email IT-Leiter/Personalentscheider 1': contact1?.email || '',
+            'Telefon IT-Leiter/Personalentscheider 1': contact1?.phone || '',
+            'Position IT-Leiter/Personalentscheider 1': contact1?.position || '',
 
-            // Contact 2
-            'Anrede IT-Leiter/Personalentscheider 2': contact2?.salutation || 'N/A',
-            'Vorname IT-Leiter/Personalentscheider 2': contact2?.firstName || 'N/A',
-            'Nachname IT-Leiter/Personalentscheider 2': contact2?.lastName || 'N/A',
-            'Email IT-Leiter/Personalentscheider 2': contact2?.email || 'N/A',
-            'Telefon IT-Leiter/Personalentscheider 2': contact2?.phone || 'N/A',
-            'Position IT-Leiter/Personalentscheider 2': contact2?.position || 'N/A',
+            // Contact 2 - Empty string if no real contact (no placeholders)
+            'Anrede IT-Leiter/Personalentscheider 2': contact2?.salutation || '',
+            'Vorname IT-Leiter/Personalentscheider 2': contact2?.firstName || '',
+            'Nachname IT-Leiter/Personalentscheider 2': contact2?.lastName || '',
+            'Email IT-Leiter/Personalentscheider 2': contact2?.email || '',
+            'Telefon IT-Leiter/Personalentscheider 2': contact2?.phone || '',
+            'Position IT-Leiter/Personalentscheider 2': contact2?.position || '',
 
             // Additional info
-            'Job-URL': job.jobUrl || 'N/A',
-            'Firmenwebsite': job.companyWebsite || 'N/A',
-            'Quelle': job.portal || 'N/A',
-            'Arbeitszeit': job.workType || 'N/A',
-            'Erfahrungslevel': job.experienceLevel || 'N/A',
-            'Gehalt Min': job.salary?.min?.toString() || 'N/A',
-            'Gehalt Max': job.salary?.max?.toString() || 'N/A',
-            'Veröffentlicht am': job.publishedDate ? new Date(job.publishedDate).toLocaleDateString('de-DE') : 'N/A',
-            'Gescraped am': job.scrapedAt ? new Date(job.scrapedAt).toLocaleDateString('de-DE') : 'N/A',
+            'Job-URL': job.jobUrl || '',
+            'Firmenwebsite': job.companyWebsite || '',
+            'Quelle': job.portal || '',
+            'Arbeitszeit': job.workType || '',
+            'Erfahrungslevel': job.experienceLevel || '',
+            'Gehalt Min': job.salary?.min?.toString() || '',
+            'Gehalt Max': job.salary?.max?.toString() || '',
+            'Veröffentlicht am': job.publishedDate ? new Date(job.publishedDate).toLocaleDateString('de-DE') : '',
+            'Gescraped am': job.scrapedAt ? new Date(job.scrapedAt).toLocaleDateString('de-DE') : '',
         };
 
         rows.push(row);

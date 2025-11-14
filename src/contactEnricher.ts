@@ -1,6 +1,7 @@
 /**
  * Contact Enrichment Module
- * Finds contact information for IT managers and HR decision-makers
+ * Finds REAL contact information for IT managers and HR decision-makers
+ * NO PLACEHOLDERS - only verified, complete contact data
  */
 
 import { log } from 'apify';
@@ -13,45 +14,18 @@ import { sleep, getUserAgent } from './utils.js';
  * Position keywords for IT managers and HR decision-makers
  */
 const IT_MANAGER_KEYWORDS = [
-    'it-leiter',
-    'it leiter',
-    'cio',
-    'chief information officer',
-    'it-direktor',
-    'it direktor',
-    'head of it',
-    'head of technology',
-    'cto',
-    'chief technology officer',
-    'it-manager',
-    'it manager',
+    'it-leiter', 'it leiter', 'cio', 'chief information officer',
+    'it-direktor', 'it direktor', 'head of it', 'head of technology',
+    'cto', 'chief technology officer', 'it-manager', 'it manager',
+    'leiter informationstechnik', 'geschäftsführer it', 'it-geschäftsführer',
 ];
 
 const HR_KEYWORDS = [
-    'personalleiter',
-    'hr-leiter',
-    'hr leiter',
-    'chief people officer',
-    'head of hr',
-    'head of people',
-    'personalchef',
-    'hr-direktor',
-    'hr direktor',
-    'chro',
-    'chief human resources officer',
+    'personalleiter', 'hr-leiter', 'hr leiter', 'chief people officer',
+    'head of hr', 'head of people', 'personalchef', 'hr-direktor',
+    'hr direktor', 'chro', 'chief human resources officer',
+    'personalabteilung', 'recruiting', 'personalreferent',
 ];
-
-/**
- * Common German email patterns
- * Currently unused but kept for future use
- */
-// const EMAIL_PATTERNS = [
-//     '{firstname}.{lastname}@{domain}',
-//     '{first}.{last}@{domain}',
-//     '{f}.{lastname}@{domain}',
-//     '{firstname}{lastname}@{domain}',
-//     '{lastname}@{domain}',
-// ];
 
 /**
  * Configuration for contact enrichment
@@ -64,12 +38,43 @@ export interface ContactEnrichmentConfig {
 }
 
 /**
+ * Validate email format
+ */
+function isValidEmail(email: string): boolean {
+    const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$/;
+    return emailRegex.test(email) &&
+           !email.includes('example') &&
+           !email.includes('placeholder') &&
+           !email.includes('noreply');
+}
+
+/**
+ * Validate phone number (German format)
+ */
+function isValidPhone(phone: string): boolean {
+    // German phone numbers: +49, 0049, or 0 followed by area code and number
+    const cleanPhone = phone.replace(/\s+/g, '');
+    return cleanPhone.length >= 10 && /^(\+49|0049|0)\d{9,}$/.test(cleanPhone);
+}
+
+/**
+ * Validate name (no placeholders, proper format)
+ */
+function isValidName(name: string): boolean {
+    return name.length >= 2 &&
+           name !== 'N/A' &&
+           name !== 'Unknown' &&
+           !/\d/.test(name) && // No numbers
+           /^[A-ZÄÖÜ][a-zäöüß]+/.test(name); // Starts with capital letter
+}
+
+/**
  * Find company website from company name
  */
 async function findCompanyWebsite(companyName: string, timeout: number): Promise<string | undefined> {
     try {
-        const searchQuery = encodeURIComponent(`${companyName} Deutschland offizielle website`);
-        const searchUrl = `https://www.google.com/search?q=${searchQuery}`;
+        const searchQuery = encodeURIComponent(`${companyName} Deutschland website impressum`);
+        const searchUrl = `https://www.google.com/search?q=${searchQuery}&num=5`;
 
         const response = await gotScraping({
             url: searchUrl,
@@ -89,12 +94,26 @@ async function findCompanyWebsite(companyName: string, timeout: number): Promise
 
         const $ = cheerio.load(response.body);
 
-        // Try to find the first organic result
-        const firstLink = $('div.g a[href^="http"]').first().attr('href');
+        // Try multiple selectors for search results
+        const linkSelectors = [
+            'div.g a[href^="http"]',
+            'div[data-ved] a[href^="http"]',
+            'a[jsname][href^="http"]',
+        ];
 
-        if (firstLink && !firstLink.includes('google.com') && !firstLink.includes('facebook.com') && !firstLink.includes('linkedin.com')) {
-            log.debug(`Found company website: ${firstLink} for ${companyName}`);
-            return firstLink;
+        for (const selector of linkSelectors) {
+            const links = $(selector);
+            for (let i = 0; i < Math.min(links.length, 3); i++) {
+                const link = $(links[i]).attr('href');
+                if (link &&
+                    !link.includes('google.com') &&
+                    !link.includes('facebook.com') &&
+                    !link.includes('linkedin.com') &&
+                    !link.includes('xing.com')) {
+                    log.debug(`Found company website: ${link} for ${companyName}`);
+                    return link;
+                }
+            }
         }
 
         return undefined;
@@ -109,32 +128,39 @@ async function findCompanyWebsite(companyName: string, timeout: number): Promise
  */
 async function scrapeCompanyContacts(
     websiteUrl: string,
+    companyName: string,
     config: ContactEnrichmentConfig,
 ): Promise<ContactPerson[]> {
     const contacts: ContactPerson[] = [];
+    const baseUrl = new URL(websiteUrl).origin;
 
     try {
-        // First, try to find Impressum or Contact page
-        const contactPageUrls = [
-            `${websiteUrl}/impressum`,
-            `${websiteUrl}/kontakt`,
-            `${websiteUrl}/contact`,
-            `${websiteUrl}/team`,
-            `${websiteUrl}/about`,
-            `${websiteUrl}/ueber-uns`,
+        // Extended list of pages to check
+        const contactPagePaths = [
+            '/impressum', '/Impressum',
+            '/kontakt', '/Kontakt', '/contact', '/Contact',
+            '/team', '/Team', '/about', '/About',
+            '/ueber-uns', '/Ueber-uns',
+            '/ansprechpartner', '/Ansprechpartner',
+            '/mitarbeiter', '/Mitarbeiter',
+            '/management', '/Management',
+            '/geschaeftsfuehrung', '/Geschaeftsfuehrung',
         ];
 
-        for (const pageUrl of contactPageUrls) {
+        for (const path of contactPagePaths) {
             if (contacts.length >= config.maxContactsPerCompany) break;
 
+            const pageUrl = `${baseUrl}${path}`;
+
             try {
-                await sleep(1000); // Respectful delay
+                await sleep(1500); // Respectful delay
 
                 const response = await gotScraping({
                     url: pageUrl,
                     headers: {
                         'User-Agent': getUserAgent(),
                         'Accept': 'text/html',
+                        'Accept-Language': 'de-DE,de;q=0.9',
                     },
                     timeout: { request: config.timeout },
                     http2: true,
@@ -144,11 +170,16 @@ async function scrapeCompanyContacts(
                 if (response.statusCode !== 200) continue;
 
                 const $ = cheerio.load(response.body);
-                const pageText = $('body').text().toLowerCase();
+                const foundContacts = extractContactsFromPage($, companyName, pageUrl);
 
-                // Look for IT manager or HR keywords
-                const foundContacts = extractContactsFromPage($, pageText);
-                contacts.push(...foundContacts);
+                // Only add validated contacts
+                for (const contact of foundContacts) {
+                    if (contacts.length >= config.maxContactsPerCompany) break;
+                    if (isValidContact(contact)) {
+                        contacts.push(contact);
+                        log.info(`Found valid contact: ${contact.firstName} ${contact.lastName} (${contact.position})`);
+                    }
+                }
 
             } catch (error) {
                 log.debug(`Failed to scrape ${pageUrl}`, { error });
@@ -159,58 +190,111 @@ async function scrapeCompanyContacts(
         log.warning(`Failed to scrape company contacts from ${websiteUrl}`, { error });
     }
 
-    return contacts.slice(0, config.maxContactsPerCompany);
+    return contacts;
 }
 
 /**
- * Extract contacts from page HTML
+ * Extract contacts from page HTML with advanced parsing
  */
-function extractContactsFromPage($: cheerio.CheerioAPI, pageText: string): ContactPerson[] {
+function extractContactsFromPage($: cheerio.CheerioAPI, companyName: string, pageUrl: string): ContactPerson[] {
     const contacts: ContactPerson[] = [];
+    const pageText = $('body').text();
 
-    // Look for email addresses
+    // Find all email addresses
     const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
-    const emails = $('body').text().match(emailRegex) || [];
+    const allEmails = pageText.match(emailRegex) || [];
+    const validEmails = allEmails.filter(isValidEmail);
 
-    // Look for phone numbers (German format)
-    const phoneRegex = /(?:\+49|0049|0)\s*\d{2,5}\s*\d{3,}\s*\d{3,}/g;
-    const phones = $('body').text().match(phoneRegex) || [];
+    // Find all phone numbers (German format)
+    const phoneRegex = /(?:\+49|0049|0)\s*[\d\s\/\-\(\)]{10,}/g;
+    const allPhones = pageText.match(phoneRegex) || [];
+    const validPhones = allPhones.filter(isValidPhone);
 
-    // Try to find names with positions
+    // Advanced name extraction patterns
     const namePatterns = [
-        /(?:herr|frau)\s+([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß]+)/gi,
-        /([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß]+)(?:,|\s+-\s+)(?:IT-Leiter|CIO|CTO|HR-Leiter|Personalleiter)/gi,
+        // Pattern: "Herr/Frau Firstname Lastname, Position"
+        /(?:Herr|Frau)\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\s+([A-ZÄÖÜ][a-zäöüß]+)(?:\s*[,:\-]?\s*)?([^\n]{0,100})/gi,
+
+        // Pattern: "Firstname Lastname - Position"
+        /([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß]+)\s*[-–]\s*([^\n]{0,50}(?:leiter|chef|manager|direktor|officer|cio|cto|hr)[^\n]{0,50})/gi,
+
+        // Pattern in structured data (vCard, hCard)
+        /<(?:div|span)[^>]*(?:class|itemtype)="[^"]*(?:vcard|hcard|person)[^"]*"[^>]*>([^<]+)</gi,
     ];
+
+    const seenNames = new Set<string>();
 
     for (const pattern of namePatterns) {
         const matches = pageText.matchAll(pattern);
+
         for (const match of matches) {
-            if (contacts.length >= 2) break;
+            if (contacts.length >= 5) break; // Collect more initially, filter later
 
-            const salutation = match[0].toLowerCase().includes('herr') ? 'Herr' :
-                             match[0].toLowerCase().includes('frau') ? 'Frau' : 'N/A';
-            const firstName = match[1] || 'N/A';
-            const lastName = match[2] || 'N/A';
+            let salutation = 'Herr';
+            let firstName = '';
+            let lastName = '';
+            let position = '';
+            let contextText = match[0].toLowerCase();
 
-            // Determine position based on context
-            let position = 'N/A';
-            const contextText = match[0].toLowerCase();
-
-            if (IT_MANAGER_KEYWORDS.some(kw => contextText.includes(kw))) {
-                position = 'IT-Leiter';
-            } else if (HR_KEYWORDS.some(kw => contextText.includes(kw))) {
-                position = 'Personalentscheider';
+            // Determine salutation
+            if (contextText.includes('frau')) {
+                salutation = 'Frau';
             }
 
-            contacts.push({
-                salutation,
-                firstName,
-                lastName,
-                email: emails[0] || undefined,
-                phone: phones[0] || undefined,
-                position,
-                source: 'Company Website',
-            });
+            // Extract name parts based on pattern
+            if (match.length >= 3) {
+                firstName = match[1]?.trim() || '';
+                lastName = match[2]?.trim() || '';
+                position = match[3]?.trim() || '';
+            }
+
+            // Validate name
+            if (!isValidName(firstName) || !isValidName(lastName)) continue;
+
+            // Skip duplicates
+            const nameKey = `${firstName} ${lastName}`.toLowerCase();
+            if (seenNames.has(nameKey)) continue;
+            seenNames.add(nameKey);
+
+            // Determine if IT or HR position
+            let matchedPosition = '';
+            const positionText = `${position} ${contextText}`.toLowerCase();
+
+            if (IT_MANAGER_KEYWORDS.some(kw => positionText.includes(kw))) {
+                matchedPosition = 'IT-Leiter';
+            } else if (HR_KEYWORDS.some(kw => positionText.includes(kw))) {
+                matchedPosition = 'Personalentscheider';
+            }
+
+            // Only include if we found a matching position
+            if (!matchedPosition) continue;
+
+            // Try to find associated email and phone
+            // Look for email/phone near the name in the HTML
+            const nameIndex = pageText.indexOf(firstName + ' ' + lastName);
+            const contextWindow = pageText.substring(
+                Math.max(0, nameIndex - 200),
+                Math.min(pageText.length, nameIndex + 200)
+            );
+
+            const nearbyEmails = contextWindow.match(emailRegex) || [];
+            const nearbyPhones = contextWindow.match(phoneRegex) || [];
+
+            const contactEmail = nearbyEmails.find(isValidEmail) || validEmails[0];
+            const contactPhone = nearbyPhones.find(isValidPhone) || validPhones[0];
+
+            // Only add if we have at least email OR phone
+            if (contactEmail || contactPhone) {
+                contacts.push({
+                    salutation,
+                    firstName,
+                    lastName,
+                    email: contactEmail,
+                    phone: contactPhone,
+                    position: matchedPosition,
+                    source: `Company Website (${pageUrl})`,
+                });
+            }
         }
     }
 
@@ -218,47 +302,34 @@ function extractContactsFromPage($: cheerio.CheerioAPI, pageText: string): Conta
 }
 
 /**
- * Generate email addresses using common patterns
- * Currently unused but kept for future use
+ * Validate that a contact has all required fields (no placeholders)
  */
-// function generateEmailAddresses(
-//     firstName: string,
-//     lastName: string,
-//     domain: string,
-// ): string[] {
-//     const emails: string[] = [];
-//     const f = firstName.toLowerCase();
-//     const l = lastName.toLowerCase();
-//     const first = f.charAt(0);
-
-//     for (const pattern of EMAIL_PATTERNS) {
-//         const email = pattern
-//             .replace('{firstname}', f)
-//             .replace('{lastname}', l)
-//             .replace('{first}', f)
-//             .replace('{last}', l)
-//             .replace('{f}', first)
-//             .replace('{domain}', domain);
-//         emails.push(email);
-//     }
-
-//     return emails;
-// }
-
-/**
- * Extract domain from company website URL
- */
-function extractDomain(websiteUrl: string): string {
-    try {
-        const url = new URL(websiteUrl);
-        return url.hostname.replace('www.', '');
-    } catch {
-        return websiteUrl.replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0];
+function isValidContact(contact: ContactPerson): boolean {
+    // Must have valid first and last name
+    if (!isValidName(contact.firstName) || !isValidName(contact.lastName)) {
+        return false;
     }
+
+    // Must have valid salutation
+    if (contact.salutation !== 'Herr' && contact.salutation !== 'Frau') {
+        return false;
+    }
+
+    // Must have valid position
+    if (!contact.position || contact.position === 'N/A' || contact.position === 'Unknown') {
+        return false;
+    }
+
+    // Must have EITHER valid email OR valid phone (preferably both)
+    const hasValidEmail = contact.email && isValidEmail(contact.email);
+    const hasValidPhone = contact.phone && isValidPhone(contact.phone);
+
+    return hasValidEmail || hasValidPhone;
 }
 
 /**
  * Main function to enrich job with contact information
+ * ONLY returns REAL contacts - NO PLACEHOLDERS
  */
 export async function enrichJobWithContacts(
     companyName: string,
@@ -266,7 +337,7 @@ export async function enrichJobWithContacts(
 ): Promise<{ contacts: ContactPerson[]; website?: string }> {
     log.info(`Enriching contacts for company: ${companyName}`);
 
-    const contacts: ContactPerson[] = [];
+    let contacts: ContactPerson[] = [];
     let website: string | undefined;
 
     try {
@@ -275,50 +346,25 @@ export async function enrichJobWithContacts(
             website = await findCompanyWebsite(companyName, config.timeout);
 
             if (website) {
+                log.debug(`Found website for ${companyName}: ${website}`);
+
                 // Step 2: Scrape company contacts from website
-                const scrapedContacts = await scrapeCompanyContacts(website, config);
-                contacts.push(...scrapedContacts);
+                const scrapedContacts = await scrapeCompanyContacts(website, companyName, config);
+                contacts = scrapedContacts;
+            } else {
+                log.warning(`No website found for ${companyName}`);
             }
         }
 
-        // Step 3: If no contacts found and email generation is enabled, create placeholder contacts
-        if (contacts.length === 0 && config.enableEmailGeneration && website) {
-            const domain = extractDomain(website);
-
-            // Create placeholder contacts for IT manager and HR
-            const placeholderContacts: ContactPerson[] = [
-                {
-                    salutation: 'N/A',
-                    firstName: 'N/A',
-                    lastName: 'N/A',
-                    email: `it-leitung@${domain}`,
-                    phone: undefined,
-                    position: 'IT-Leiter',
-                    source: 'Generated (not verified)',
-                },
-                {
-                    salutation: 'N/A',
-                    firstName: 'N/A',
-                    lastName: 'N/A',
-                    email: `personal@${domain}`,
-                    phone: undefined,
-                    position: 'Personalentscheider',
-                    source: 'Generated (not verified)',
-                },
-            ];
-
-            contacts.push(...placeholderContacts.slice(0, config.maxContactsPerCompany));
+        // NO PLACEHOLDERS: If no real contacts found, return empty array
+        if (contacts.length === 0) {
+            log.warning(`No verified contacts found for ${companyName}`);
+        } else {
+            log.info(`Found ${contacts.length} verified contact(s) for ${companyName}`);
         }
 
     } catch (error) {
         log.error(`Failed to enrich contacts for ${companyName}`, { error });
-    }
-
-    // If still no contacts, return empty array with note
-    if (contacts.length === 0) {
-        log.warning(`No contacts found for ${companyName}`);
-    } else {
-        log.info(`Found ${contacts.length} contact(s) for ${companyName}`);
     }
 
     return {
