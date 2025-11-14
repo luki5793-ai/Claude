@@ -5,8 +5,8 @@ FROM apify/actor-node:20
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --omit=dev --omit=optional
+# Install ALL dependencies (including devDependencies for build)
+RUN npm install
 
 # Copy source code
 COPY . ./
@@ -14,5 +14,8 @@ COPY . ./
 # Build TypeScript code
 RUN npm run build
 
+# Remove devDependencies after build to reduce image size
+RUN npm prune --production
+
 # Set the command to run the actor
-CMD npm start
+CMD node dist/main.js
