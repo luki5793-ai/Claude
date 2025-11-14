@@ -1,9 +1,9 @@
 {
   "actorSpecification": 1,
-  "name": "google-jobs-it-scraper",
-  "title": "Google Jobs IT Scraper (Germany)",
-  "description": "Production-ready actor for scraping IT jobs from Google Jobs in Germany. Supports multiple search queries, locations, proxy rotation, and advanced filtering.",
-  "version": "1.0.0",
+  "name": "german-it-jobs-scraper",
+  "title": "German IT Jobs Scraper with Contact Enrichment",
+  "description": "Production-ready actor for scraping IT jobs from multiple German job portals (Google Jobs, StepStone, Indeed) with automatic contact enrichment for IT managers and HR decision-makers. Features PLZ filtering, recruitment agency detection, and Excel/CSV export.",
+  "version": "2.0.0",
   "meta": {
     "templateId": "node-typescript"
   },
