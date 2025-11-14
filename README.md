@@ -1,100 +1,135 @@
-# Google Jobs IT Scraper (Germany)
+# German IT Jobs Scraper mit Kontakt-Anreicherung
 
-Production-ready Apify Actor for scraping IT jobs from Google Jobs in Germany. This actor supports multiple search queries, locations, proxy rotation, advanced filtering, and provides detailed statistics.
+Production-ready Apify Actor zum Scrapen von IT-Jobs aus mehreren deutschen Job-Portalen mit automatischer Recherche der Kontaktdaten von IT-Leitern und Personalentscheidern.
 
 ## 🚀 Features
 
-- **Multi-Query Support**: Search for multiple job titles and locations simultaneously
-- **Advanced Filtering**: Exclude jobs by keywords, filter by work type and experience level
-- **Proxy Support**: Built-in support for Apify Proxy (residential and datacenter)
-- **Resilience**: Automatic retry with exponential backoff, checkpoint system for resuming
-- **Deduplication**: Automatic removal of duplicate job listings
-- **Rich Data Extraction**: Extracts 12+ data points per job including salary, company, location, etc.
-- **Statistics & Reporting**: Detailed statistics and summary reports
-- **Rate Limiting**: Configurable delays between requests to avoid blocking
-- **Production-Ready**: TypeScript, comprehensive error handling, structured logging
+- **Multi-Portal Support**: Scraping von Google Jobs, StepStone und Indeed gleichzeitig
+- **PLZ-Filter**: Geografische Filterung nach Postleitzahlen (z.B. Region Köln/Bonn mit PLZ-Präfix "5")
+- **Personalvermittler-Filter**: Automatisches Ausschließen von Personalberatungen, Headhuntern und Zeitarbeitsfirmen
+- **Kontakt-Anreicherung**: Automatische Recherche von IT-Leitern und Personalentscheidern
+  - Bis zu 2 Kontaktpersonen pro Unternehmen
+  - Anrede, Vor- und Nachname
+  - E-Mail-Adresse und Telefonnummer
+  - Position im Unternehmen
+- **Excel/CSV Export**: Übersichtliche Exports mit allen gewünschten Spalten
+- **Proxy Support**: Unterstützung für Apify Proxy (Residential und Datacenter)
+- **Resilienz**: Automatische Wiederholungsversuche und Checkpoint-System
+- **Production-Ready**: TypeScript, umfassende Fehlerbehandlung, strukturiertes Logging
 
-## 📋 Input Parameters
+## 📋 Input-Parameter
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `searchQueries` | Array<string> | ✅ Yes | - | IT job search terms (e.g., "Software Developer", "DevOps Engineer") |
-| `locations` | Array<string> | ✅ Yes | - | German cities/regions (e.g., "Berlin", "München", "Remote") |
-| `maxResults` | number | No | 50 | Maximum results per search query (10-500) |
-| `includeRemote` | boolean | No | true | Include remote/home office positions |
-| `excludeWords` | Array<string> | No | [] | Filter out jobs containing these words in title |
-| `requestTimeout` | number | No | 30000 | HTTP request timeout in milliseconds |
-| `maxRetries` | number | No | 3 | Maximum retry attempts for failed requests |
-| `proxyConfiguration` | object | No | - | Apify Proxy configuration |
-| `minDelayBetweenRequests` | number | No | 1000 | Minimum delay between requests (ms) |
-| `maxDelayBetweenRequests` | number | No | 3000 | Maximum delay between requests (ms) |
+| Parameter | Typ | Erforderlich | Standard | Beschreibung |
+|-----------|-----|--------------|----------|--------------|
+| `searchQueries` | Array<string> | ✅ Ja | - | IT-Job Suchbegriffe (z.B. "Software Entwickler", "DevOps Engineer") |
+| `locations` | Array<string> | ✅ Ja | - | Deutsche Städte/Regionen (z.B. "Köln", "Bonn", "Remote") |
+| `postalCodeFilter` | Array<string> | Nein | ["5"] | PLZ-Präfixe für geografische Filterung |
+| `jobPortals` | Array<string> | Nein | ["all"] | Job-Portale: "google", "stepstone", "indeed", oder "all" |
+| `maxResults` | number | Nein | 50 | Maximale Ergebnisse pro Portal und Suche (10-500) |
+| `includeRemote` | boolean | Nein | true | Remote/Home-Office Positionen einschließen |
+| `excludeWords` | Array<string> | Nein | [] | Jobs mit diesen Wörtern im Titel ausschließen |
+| `excludeRecruitmentAgencies` | boolean | Nein | true | Personalvermittler automatisch ausschließen |
+| `enableContactEnrichment` | boolean | Nein | true | Kontaktdaten-Anreicherung aktivieren |
+| `maxContactsPerCompany` | number | Nein | 2 | Maximale Anzahl Kontakte pro Firma (1-5) |
+| `requestTimeout` | number | Nein | 30000 | HTTP Request Timeout in Millisekunden |
+| `maxRetries` | number | Nein | 3 | Maximale Wiederholungsversuche bei Fehlern |
+| `proxyConfiguration` | object | Nein | - | Apify Proxy Konfiguration |
+| `minDelayBetweenRequests` | number | Nein | 1000 | Minimale Verzögerung zwischen Requests (ms) |
+| `maxDelayBetweenRequests` | number | Nein | 3000 | Maximale Verzögerung zwischen Requests (ms) |
 
-## 📊 Output Data
+## 📊 Output-Daten
 
-Each job listing contains the following fields:
+### Excel/CSV Export
 
-```typescript
-{
-  id: string;                    // Unique job identifier
-  title: string;                 // Job title
-  company: string;               // Company name
-  location: string;              // Job location
-  workType: string;              // Vollzeit, Teilzeit, Praktikum, etc.
-  experienceLevel: string;       // Junior, Mid-Level, Senior, etc.
-  salary?: {                     // Salary information (if available)
-    min: number;
-    max: number;
-    currency: string;
-    period: string;
-  };
-  description: string;           // Job description
-  jobUrl: string;                // Direct link to job posting
-  publishedDate: string;         // ISO 8601 date string
-  companySize?: string;          // Company size (if available)
-  industry?: string;             // Industry classification
-  scrapedAt: string;             // Scrape timestamp (ISO 8601)
-  searchQuery: string;           // Original search query used
-  searchLocation: string;        // Original search location used
-}
-```
+Der Actor erstellt automatisch Excel- und CSV-Dateien mit folgenden Spalten:
 
-## 🔧 Usage Examples
+- **Job-Titel**: Stellenbezeichnung
+- **Unternehmen**: Firmenname
+- **Standort**: Arbeitsort
+- **PLZ**: Postleitzahl
+- **Anrede IT-Leiter/Personalentscheider 1**: Herr/Frau
+- **Vorname IT-Leiter/Personalentscheider 1**
+- **Nachname IT-Leiter/Personalentscheider 1**
+- **Email IT-Leiter/Personalentscheider 1**
+- **Telefon IT-Leiter/Personalentscheider 1**
+- **Position IT-Leiter/Personalentscheider 1**
+- **Anrede IT-Leiter/Personalentscheider 2**
+- **Vorname IT-Leiter/Personalentscheider 2**
+- **Nachname IT-Leiter/Personalentscheider 2**
+- **Email IT-Leiter/Personalentscheider 2**
+- **Telefon IT-Leiter/Personalentscheider 2**
+- **Position IT-Leiter/Personalentscheider 2**
+- **Job-URL**: Link zur Stellenanzeige
+- **Firmenwebsite**: Website des Unternehmens
+- **Quelle**: Portal (Google Jobs, StepStone, Indeed)
+- **Arbeitszeit**: Vollzeit, Teilzeit, etc.
+- **Erfahrungslevel**: Junior, Mid-Level, Senior
+- **Gehalt Min**: Minimales Gehalt (falls verfügbar)
+- **Gehalt Max**: Maximales Gehalt (falls verfügbar)
+- **Veröffentlicht am**: Datum der Veröffentlichung
+- **Gescraped am**: Scraping-Zeitstempel
 
-### Example 1: Basic Usage
+### JSON Dataset
+
+Jeder Job wird zusätzlich im JSON-Format mit vollständigen Daten im Dataset gespeichert.
+
+## 🔧 Verwendungsbeispiele
+
+### Beispiel 1: Köln/Bonn Region (PLZ 5)
 
 ```json
 {
-  "searchQueries": ["Software Developer", "DevOps Engineer"],
-  "locations": ["Berlin", "München"],
-  "maxResults": 50
+  "searchQueries": ["Software Entwickler", "Java Entwickler", "DevOps Engineer"],
+  "locations": ["Köln", "Bonn"],
+  "postalCodeFilter": ["5"],
+  "jobPortals": ["all"],
+  "maxResults": 50,
+  "excludeRecruitmentAgencies": true,
+  "enableContactEnrichment": true,
+  "maxContactsPerCompany": 2
 }
 ```
 
-### Example 2: Advanced Filtering
+### Beispiel 2: Nur StepStone und Indeed
 
 ```json
 {
-  "searchQueries": [
-    "IT-Sicherheit",
-    "Cybersecurity Engineer",
-    "Penetration Tester"
-  ],
-  "locations": ["Berlin", "Hamburg", "Frankfurt", "Remote"],
+  "searchQueries": ["IT-Sicherheit", "Cybersecurity Engineer"],
+  "locations": ["Köln", "Düsseldorf", "Aachen"],
+  "postalCodeFilter": ["5"],
+  "jobPortals": ["stepstone", "indeed"],
   "maxResults": 100,
-  "includeRemote": true,
-  "excludeWords": ["Praktikum", "Werkstudent"],
-  "minDelayBetweenRequests": 2000,
-  "maxDelayBetweenRequests": 5000
+  "excludeRecruitmentAgencies": true,
+  "enableContactEnrichment": true
 }
 ```
 
-### Example 3: With Proxy Configuration
+### Beispiel 3: Ohne Kontakt-Anreicherung (schneller)
 
 ```json
 {
-  "searchQueries": ["Full Stack Developer", "Backend Engineer"],
-  "locations": ["München", "Stuttgart", "Nürnberg"],
-  "maxResults": 75,
+  "searchQueries": ["Full Stack Developer"],
+  "locations": ["Köln"],
+  "postalCodeFilter": ["50", "51", "53"],
+  "jobPortals": ["google"],
+  "maxResults": 30,
+  "excludeRecruitmentAgencies": true,
+  "enableContactEnrichment": false
+}
+```
+
+### Beispiel 4: Mit Proxy für große Runs
+
+```json
+{
+  "searchQueries": ["Software Entwickler", "Backend Engineer", "Frontend Developer"],
+  "locations": ["Köln", "Bonn", "Aachen", "Düsseldorf"],
+  "postalCodeFilter": ["5"],
+  "jobPortals": ["all"],
+  "maxResults": 100,
+  "excludeRecruitmentAgencies": true,
+  "enableContactEnrichment": true,
+  "maxContactsPerCompany": 2,
   "proxyConfiguration": {
     "useApifyProxy": true,
     "apifyProxyGroups": ["RESIDENTIAL"]
@@ -104,209 +139,186 @@ Each job listing contains the following fields:
 }
 ```
 
-### Example 4: Salary-Focused Search
+## 🏃‍♂️ Lokal Ausführen
 
-```json
-{
-  "searchQueries": [
-    "Senior Software Engineer",
-    "Lead Developer",
-    "Principal Engineer"
-  ],
-  "locations": ["Berlin", "München"],
-  "maxResults": 100,
-  "excludeWords": ["junior", "praktikum", "student"]
-}
-```
-
-## 🏃‍♂️ Running Locally
-
-1. **Clone the repository**:
+1. **Repository klonen**:
 ```bash
 git clone <repository-url>
-cd google-jobs-it-scraper
+cd german-it-jobs-scraper
 ```
 
-2. **Install dependencies**:
+2. **Dependencies installieren**:
 ```bash
 npm install
 ```
 
-3. **Create input file** (`.actor/INPUT.json`):
+3. **Input-Datei erstellen** (`.actor/INPUT.json`):
 ```json
 {
-  "searchQueries": ["Software Developer"],
-  "locations": ["Berlin"],
+  "searchQueries": ["Software Entwickler"],
+  "locations": ["Köln"],
+  "postalCodeFilter": ["5"],
+  "jobPortals": ["all"],
   "maxResults": 20
 }
 ```
 
-4. **Run the actor**:
+4. **Actor ausführen**:
 ```bash
 npm start
 ```
 
-5. **Development mode** (with auto-reload):
+5. **Development-Modus** (mit Auto-Reload):
 ```bash
 npm run dev
 ```
 
-## 🐳 Docker Deployment
-
-Build and run using Docker:
-
-```bash
-# Build the image
-docker build -t google-jobs-scraper .
-
-# Run the container
-docker run -e APIFY_TOKEN=<your-token> google-jobs-scraper
-```
-
-## 📦 Deploying to Apify Platform
+## 📦 Auf Apify Platform deployen
 
 1. **Via Apify Console**:
-   - Create a new Actor in Apify Console
-   - Copy all files to the Actor's source code editor
-   - Build and run the Actor
+   - Neuen Actor in Apify Console erstellen
+   - Alle Dateien in den Source Code Editor kopieren
+   - Actor builden und ausführen
 
 2. **Via Apify CLI**:
 ```bash
-# Install Apify CLI
+# Apify CLI installieren
 npm install -g apify-cli
 
-# Login to Apify
+# Bei Apify anmelden
 apify login
 
-# Push to Apify
+# Zu Apify pushen
 apify push
 ```
 
-## 📈 Output & Reports
+## 📁 Downloads und Exports
 
-The actor provides multiple output formats:
+Nach erfolgreichem Run finden Sie im Key-Value Store:
 
-### 1. Dataset (Main Output)
-All scraped jobs are saved to the default dataset in JSON/CSV format.
+- **`jobs_export.xlsx`**: Excel-Datei mit allen Jobs und Kontakten
+- **`jobs_export.csv`**: CSV-Datei (Semikolon-getrennt, deutsche Formatierung)
+- **`EXPORT_SUMMARY`**: Zusammenfassung der Ergebnisse
+- **`FINAL_STATS`**: Detaillierte Scraping-Statistiken
+- **`RUN_SUMMARY`**: Ausführliche Auswertung
 
-### 2. Statistics Report
-Saved in Key-Value Store under `FINAL_STATS`:
-- Total jobs found/scraped
-- Duplicates skipped
-- Errors encountered
-- Processing duration
-- Query statistics
+## 🔍 Kontakt-Anreicherung
 
-### 3. Summary Report
-Saved in Key-Value Store under `RUN_SUMMARY`:
-- Top companies by job count
-- Top locations
-- Work type distribution
-- Experience level distribution
-- Salary statistics
+Die Kontakt-Anreicherung funktioniert in mehreren Schritten:
 
-### 4. Error Log
-If errors occur, they are saved under `SCRAPING_ERRORS` in the Key-Value Store.
+1. **Website-Suche**: Automatische Suche nach der Firmenwebsite
+2. **Website-Scraping**: Durchsuchen von Impressum, Kontakt und Team-Seiten
+3. **Kontaktextraktion**: Identifikation von IT-Leitern und Personalentscheidern
+4. **Daten-Validierung**: Überprüfung und Strukturierung der Kontaktdaten
 
-## 🔄 Checkpoint & Resume
+### Hinweis zur Kontakt-Anreicherung
 
-The actor automatically saves checkpoints every 5 queries. If the actor is interrupted:
-- Progress is saved automatically
-- On restart, it resumes from the last checkpoint
-- No duplicate scraping of already processed queries
+- Die Qualität der Kontaktdaten variiert je nach Verfügbarkeit auf Unternehmenswebsites
+- Nicht bei allen Firmen können vollständige Kontakte gefunden werden
+- Fehlende Daten werden mit "N/A" markiert
+- Bei aktivierter Kontakt-Anreicherung erhöht sich die Laufzeit signifikant
+- Respektvolle Rate-Limiting (3 Sekunden zwischen Unternehmensanfragen)
 
-## ⚙️ Configuration Files
+## 🛡️ Personalvermittler-Filter
 
-### ESLint Configuration (`.eslintrc.json`)
-```json
-{
-  "parser": "@typescript-eslint/parser",
-  "extends": [
-    "eslint:recommended",
-    "plugin:@typescript-eslint/recommended"
-  ],
-  "parserOptions": {
-    "ecmaVersion": 2022,
-    "sourceType": "module"
-  },
-  "rules": {
-    "semi": ["error", "always"],
-    "quotes": ["error", "single"],
-    "@typescript-eslint/no-explicit-any": "warn"
-  }
-}
-```
+Der Actor erkennt und filtert automatisch:
 
-### TypeScript Configuration (`tsconfig.json`)
-Production-ready TypeScript configuration with strict mode enabled.
+- **Keywords**: Personalvermittlung, Personalberatung, Headhunter, Zeitarbeit, etc.
+- **Bekannte Agenturen**: Randstad, Adecco, Hays, Manpower, etc.
+- **Formulierungen**: "Für unseren Kunden", "Im Auftrag", etc.
 
-## 🛡️ Error Handling
+Erkannte Personalvermittler werden gekennzeichnet und können automatisch ausgeschlossen werden.
 
-The actor implements multiple layers of error handling:
+## 📍 PLZ-Filter
 
-1. **Input Validation**: Zod schema validation for all inputs
-2. **Request Retries**: Exponential backoff (2s, 4s, 8s, ...)
-3. **Graceful Degradation**: Continues processing even if individual queries fail
-4. **Structured Logging**: All errors logged with context
-5. **Error Reports**: Comprehensive error reports in Key-Value Store
+Der Actor unterstützt flexible PLZ-Filterung:
 
-## 📊 Performance Tips
+- **Region Köln/Bonn**: `["5"]` (alle PLZ mit 5xxxx)
+- **Spezifische Städte**: `["50", "53"]` (Köln und Bonn)
+- **Mehrere Regionen**: `["5", "4", "6"]`
 
-- **Proxy Usage**: Use Apify Residential Proxy for better success rate
-- **Request Delays**: Increase delays (3-5s) for more stable scraping
-- **Batch Size**: Process 50-100 jobs per query for optimal performance
-- **Concurrent Runs**: Avoid running multiple instances simultaneously on same queries
+## 📊 Statistiken und Berichte
+
+Der Actor erstellt detaillierte Berichte:
+
+- Anzahl gefundener und gescrapeter Jobs
+- Jobs mit Kontaktdaten vs. ohne
+- Verteilung nach Portalen
+- Verteilung nach PLZ-Bereichen
+- Top-Unternehmen nach Anzahl Jobs
+- Durchschnittliche Kontakte pro Job
+- Fehler und Warnungen
+
+## ⚙️ Performance-Tipps
+
+- **Proxy-Nutzung**: Für große Runs Apify Residential Proxy verwenden
+- **Request-Delays**: Erhöhung auf 3-5s für stabileres Scraping
+- **Kontakt-Anreicherung**: Deaktivieren für schnellere Ergebnisse ohne Kontakte
+- **Portal-Auswahl**: Einzelne Portale für gezieltere Suchen
+- **Batch-Größe**: 50-100 Jobs pro Query für optimale Performance
 
 ## 🤝 Best Practices
 
-1. **Start Small**: Test with 1-2 queries before scaling up
-2. **Use Proxies**: Always use proxies for production runs
-3. **Monitor Logs**: Check actor logs for warnings and errors
-4. **Respect Rate Limits**: Use appropriate delays between requests
-5. **Review Results**: Check dataset for quality before exporting
+1. **Klein anfangen**: Mit 1-2 Queries testen
+2. **Proxies nutzen**: Immer Proxies für Production-Runs
+3. **Logs überwachen**: Auf Warnungen und Fehler achten
+4. **Rate Limits**: Angemessene Delays zwischen Requests
+5. **Ergebnisse prüfen**: Dataset vor Export überprüfen
+6. **Kontakt-Qualität**: Manuell verifizieren bei kritischen Anwendungen
 
-## 📝 Notes
+## 📝 Wichtige Hinweise
 
-- Google's HTML structure changes frequently; selectors may need updates
-- Some job data (salary, company size) is not always available
-- Remote positions are included by default (use `includeRemote: false` to exclude)
-- Actor is optimized for German job market
+- Die HTML-Struktur der Job-Portale ändert sich häufig; Selektoren können Updates benötigen
+- Einige Job-Daten (Gehalt, Firmengröße) sind nicht immer verfügbar
+- Kontaktdaten sind optional und hängen von der Verfügbarkeit ab
+- Remote-Positionen sind standardmäßig inkludiert
+- Actor ist optimiert für den deutschen Arbeitsmarkt
+- Bei PLZ-Filter werden nur Jobs mit erkennbarer PLZ gefiltert
 
 ## 🐛 Troubleshooting
 
-**Problem**: No jobs found
-- **Solution**: Check if search queries are valid, try broader terms
+**Problem**: Keine Jobs gefunden
+- **Lösung**: Suchbegriffe überprüfen, breitere Begriffe versuchen
 
-**Problem**: Many errors/timeouts
-- **Solution**: Increase `requestTimeout` and use residential proxies
+**Problem**: Viele Fehler/Timeouts
+- **Lösung**: `requestTimeout` erhöhen und Residential Proxies nutzen
 
-**Problem**: Duplicate jobs
-- **Solution**: Built-in deduplication should handle this; check logs for issues
+**Problem**: Keine Kontaktdaten gefunden
+- **Lösung**: Normal, viele Firmen veröffentlichen keine Kontakte online
 
-**Problem**: Actor runs too slowly
-- **Solution**: Reduce delays or increase timeout values
+**Problem**: Actor läuft zu langsam
+- **Lösung**: Kontakt-Anreicherung deaktivieren oder weniger Portale wählen
 
-## 📄 License
+**Problem**: Zu viele Personalvermittler
+- **Lösung**: `excludeRecruitmentAgencies: true` aktivieren
+
+## 📄 Lizenz
 
 Apache-2.0
 
 ## 👥 Support
 
-For issues and questions:
-1. Check the actor logs for error messages
-2. Review the error reports in Key-Value Store
-3. Ensure input parameters are valid
-4. Contact Apify support if issues persist
+Für Probleme und Fragen:
+1. Actor-Logs auf Fehlermeldungen prüfen
+2. Error Reports im Key-Value Store überprüfen
+3. Input-Parameter validieren
+4. Bei Problemen Apify Support kontaktieren
 
 ## 🔄 Version History
 
-- **1.0.0** (2025-01-11): Initial release
-  - Multi-query support
-  - Advanced filtering
-  - Checkpoint system
-  - Comprehensive error handling
-  - Rich statistics and reporting
+- **2.0.0** (2025-01-14): Major Update
+  - Multi-Portal Support (Google Jobs, StepStone, Indeed)
+  - Kontakt-Anreicherung für IT-Leiter und Personalentscheider
+  - PLZ-Filterung
+  - Personalvermittler-Filter
+  - Excel/CSV Export
+  - Verbesserte Fehlerbehandlung
+
+- **1.0.0** (2025-01-11): Initial Release
+  - Google Jobs Scraping
+  - Multi-Query Support
+  - Checkpoint System
 
 ---
 
-**Happy Scraping! 🎉**
+**Viel Erfolg beim Scrapen! 🎉**

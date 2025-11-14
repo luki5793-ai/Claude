@@ -2,7 +2,7 @@
  * Main scraping logic for Google Jobs IT Scraper
  */
 
-import { log } from '@apify/sdk';
+import { log } from 'apify';
 import { gotScraping } from 'got-scraping';
 import * as cheerio from 'cheerio';
 import type {
@@ -27,6 +27,9 @@ import {
     randomDelay,
     logError,
 } from './utils.js';
+import { detectRecruitmentAgency, extractPostalCode, matchesPostalCodeFilter } from './recruitmentDetector.js';
+import { scrapeStepStone } from './stepStoneScraper.js';
+import { scrapeIndeed } from './indeedScraper.js';
 
 /**
  * Google Jobs Scraper class
@@ -153,6 +156,9 @@ export class GoogleJobsScraper {
                         query.location
                     );
 
+                    // Extract postal code
+                    const postalCode = extractPostalCode(location);
+
                     // Extract job URL
                     const linkElement = $card.find('a[href*="/search"]').first();
                     let jobUrl = linkElement.attr('href') || '';
@@ -207,22 +213,29 @@ export class GoogleJobsScraper {
                     const companySize = undefined;
                     const industry = this.extractIndustry(company, description);
 
+                    // Detect recruitment agency
+                    const recruitmentDetection = detectRecruitmentAgency(company, description, jobUrl);
+
                     const job: ScrapedJob = {
                         id: jobId,
                         title,
                         company,
                         location,
+                        postalCode,
                         workType,
                         experienceLevel,
-                        ...(salary && { salary }),
+                        salary: salary,
                         description,
                         jobUrl,
                         publishedDate,
-                        ...(companySize && { companySize }),
-                        ...(industry && { industry }),
+                        companySize: companySize,
+                        industry: industry,
+                        isRecruitmentAgency: recruitmentDetection.isRecruitmentAgency,
+                        recruitmentAgencyReason: recruitmentDetection.reason,
                         scrapedAt: new Date().toISOString(),
                         searchQuery: query.query,
                         searchLocation: query.location,
+                        portal: 'Google Jobs',
                     };
 
                     jobs.push(job);
@@ -383,5 +396,109 @@ export class GoogleJobsScraper {
      */
     public getSeenUrls(): string[] {
         return Array.from(this.seenJobUrls);
+    }
+
+    /**
+     * Scrape from multiple portals based on configuration
+     */
+    public async scrapeAllPortals(
+        query: SearchQuery,
+        proxyUrl?: string,
+    ): Promise<ScrapedJob[]> {
+        const allJobs: ScrapedJob[] = [];
+        const portals = this.input.jobPortals || ['all'];
+
+        // Determine which portals to scrape
+        const shouldScrapeGoogle = portals.includes('all') || portals.includes('google');
+        const shouldScrapeStepStone = portals.includes('all') || portals.includes('stepstone');
+        const shouldScrapeIndeed = portals.includes('all') || portals.includes('indeed');
+
+        try {
+            // Scrape Google Jobs
+            if (shouldScrapeGoogle) {
+                log.info('Scraping Google Jobs...');
+                const googleJobs = await this.scrapeQuery(query, proxyUrl);
+                allJobs.push(...googleJobs);
+            }
+
+            // Scrape StepStone
+            if (shouldScrapeStepStone) {
+                log.info('Scraping StepStone...');
+                try {
+                    const stepStoneJobs = await scrapeStepStone(
+                        query,
+                        this.input.maxResults,
+                        this.input.requestTimeout,
+                        proxyUrl,
+                    );
+                    allJobs.push(...stepStoneJobs);
+                    this.stats.totalJobsScraped += stepStoneJobs.length;
+                } catch (error) {
+                    log.error('Error scraping StepStone', { error });
+                }
+            }
+
+            // Scrape Indeed
+            if (shouldScrapeIndeed) {
+                log.info('Scraping Indeed...');
+                try {
+                    const indeedJobs = await scrapeIndeed(
+                        query,
+                        this.input.maxResults,
+                        this.input.requestTimeout,
+                        proxyUrl,
+                    );
+                    allJobs.push(...indeedJobs);
+                    this.stats.totalJobsScraped += indeedJobs.length;
+                } catch (error) {
+                    log.error('Error scraping Indeed', { error });
+                }
+            }
+
+            // Filter jobs based on configuration
+            const filteredJobs = this.filterJobs(allJobs);
+
+            log.info(`Total jobs after filtering: ${filteredJobs.length} (from ${allJobs.length} raw jobs)`);
+            return filteredJobs;
+
+        } catch (error) {
+            log.error('Error scraping portals', { error });
+            return [];
+        }
+    }
+
+    /**
+     * Filter jobs based on configuration (PLZ, recruitment agencies, etc.)
+     */
+    private filterJobs(jobs: ScrapedJob[]): ScrapedJob[] {
+        let filtered = jobs;
+
+        // Filter by postal code if specified
+        if (this.input.postalCodeFilter && this.input.postalCodeFilter.length > 0) {
+            const beforeCount = filtered.length;
+            filtered = filtered.filter(job =>
+                matchesPostalCodeFilter(job.postalCode, this.input.postalCodeFilter)
+            );
+            log.info(`PLZ filter: ${beforeCount} -> ${filtered.length} jobs`);
+        }
+
+        // Filter out recruitment agencies if specified
+        if (this.input.excludeRecruitmentAgencies) {
+            const beforeCount = filtered.length;
+            filtered = filtered.filter(job => !job.isRecruitmentAgency);
+            log.info(`Recruitment agency filter: ${beforeCount} -> ${filtered.length} jobs`);
+        }
+
+        // Remove duplicates based on URL
+        const seenUrls = new Set<string>();
+        filtered = filtered.filter(job => {
+            if (seenUrls.has(job.jobUrl)) {
+                return false;
+            }
+            seenUrls.add(job.jobUrl);
+            return true;
+        });
+
+        return filtered;
     }
 }

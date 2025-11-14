@@ -1,19 +1,24 @@
 {
   "searchQueries": [
-    "Software Developer",
+    "Software Entwickler",
+    "Java Entwickler",
     "DevOps Engineer",
-    "IT-Sicherheit"
+    "Full Stack Developer"
   ],
   "locations": [
-    "Berlin",
-    "München",
-    "Hamburg"
+    "Köln",
+    "Bonn"
   ],
+  "postalCodeFilter": ["5"],
+  "jobPortals": ["all"],
   "maxResults": 50,
   "includeRemote": true,
-  "excludeWords": [],
+  "excludeWords": ["Praktikum", "Werkstudent"],
+  "excludeRecruitmentAgencies": true,
+  "enableContactEnrichment": true,
+  "maxContactsPerCompany": 2,
   "requestTimeout": 30000,
   "maxRetries": 3,
-  "minDelayBetweenRequests": 1000,
-  "maxDelayBetweenRequests": 3000
+  "minDelayBetweenRequests": 2000,
+  "maxDelayBetweenRequests": 4000
 }
