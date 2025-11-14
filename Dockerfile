@@ -5,8 +5,9 @@ FROM apify/actor-node:20
 # Copy package files
 COPY package*.json ./
 
-# Install ALL dependencies (including devDependencies for build)
-RUN npm install
+# Clean install ALL dependencies (including devDependencies for TypeScript build)
+# Using --include=dev to ensure devDependencies are installed
+RUN npm ci --include=dev || npm install --include=dev
 
 # Copy source code
 COPY . ./
