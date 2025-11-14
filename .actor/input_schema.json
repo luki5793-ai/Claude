@@ -1,15 +1,15 @@
 {
-  "title": "Google Jobs IT Scraper Input",
+  "title": "German IT Jobs Scraper Input",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
     "searchQueries": {
       "title": "Search Queries",
       "type": "array",
-      "description": "IT job search terms (e.g., 'IT-Sicherheit', 'DevOps Engineer', 'Software Developer')",
+      "description": "IT job search terms (e.g., 'Software Entwickler', 'DevOps Engineer', 'Java Entwickler')",
       "editor": "stringList",
-      "default": ["Software Developer", "DevOps Engineer"],
-      "prefill": ["Software Developer", "DevOps Engineer", "IT-Sicherheit"],
+      "default": ["Software Entwickler", "DevOps Engineer"],
+      "prefill": ["Software Entwickler", "Java Entwickler", "DevOps Engineer", "Full Stack Developer"],
       "items": {
         "type": "string"
       },
@@ -18,19 +18,42 @@
     "locations": {
       "title": "Locations",
       "type": "array",
-      "description": "German cities/regions (e.g., 'Berlin', 'München', 'Remote')",
+      "description": "German cities/regions (e.g., 'Köln', 'Bonn', 'Berlin', 'Remote')",
       "editor": "stringList",
-      "default": ["Berlin", "München"],
-      "prefill": ["Berlin", "München", "Hamburg", "Köln", "Frankfurt"],
+      "default": ["Köln", "Bonn"],
+      "prefill": ["Köln", "Bonn", "Berlin", "München", "Hamburg", "Frankfurt", "Remote"],
       "items": {
         "type": "string"
       },
       "minItems": 1
     },
+    "postalCodeFilter": {
+      "title": "Postal Code Filter (PLZ)",
+      "type": "array",
+      "description": "Filter jobs by postal code prefix. E.g., ['5'] for Köln/Bonn region (50xxx-59xxx), ['50', '53'] for Köln and Bonn specifically",
+      "editor": "stringList",
+      "default": ["5"],
+      "prefill": ["5"],
+      "items": {
+        "type": "string"
+      }
+    },
+    "jobPortals": {
+      "title": "Job Portals",
+      "type": "array",
+      "description": "Which job portals to scrape. Options: 'all', 'google', 'stepstone', 'indeed'",
+      "editor": "select",
+      "default": ["all"],
+      "prefill": ["all"],
+      "items": {
+        "type": "string",
+        "enum": ["all", "google", "stepstone", "indeed"]
+      }
+    },
     "maxResults": {
-      "title": "Max Results per Query",
+      "title": "Max Results per Portal/Query",
       "type": "integer",
-      "description": "Maximum number of results to scrape per search query",
+      "description": "Maximum number of results to scrape per portal and search query",
       "default": 50,
       "minimum": 10,
       "maximum": 500,
@@ -45,12 +68,33 @@
     "excludeWords": {
       "title": "Exclude Words",
       "type": "array",
-      "description": "Job titles containing these words will be filtered out",
+      "description": "Job titles containing these words will be filtered out (e.g., 'Praktikum', 'Werkstudent')",
       "editor": "stringList",
       "default": [],
+      "prefill": ["Praktikum", "Werkstudent"],
       "items": {
         "type": "string"
       }
+    },
+    "excludeRecruitmentAgencies": {
+      "title": "Exclude Recruitment Agencies",
+      "type": "boolean",
+      "description": "Automatically filter out jobs from Personalvermittlung, Personalberatung, Headhunters, and Zeitarbeit firms",
+      "default": true
+    },
+    "enableContactEnrichment": {
+      "title": "Enable Contact Enrichment",
+      "type": "boolean",
+      "description": "Automatically research and extract contact information for IT managers and HR decision-makers. WARNING: Significantly increases runtime (3s per company)",
+      "default": true
+    },
+    "maxContactsPerCompany": {
+      "title": "Max Contacts per Company",
+      "type": "integer",
+      "description": "Maximum number of contact persons to research per company (IT managers and HR decision-makers)",
+      "default": 2,
+      "minimum": 1,
+      "maximum": 5
     },
     "requestTimeout": {
       "title": "Request Timeout",
@@ -72,7 +116,7 @@
     "proxyConfiguration": {
       "title": "Proxy Configuration",
       "type": "object",
-      "description": "Apify Proxy or custom proxy configuration",
+      "description": "Apify Proxy or custom proxy configuration. Recommended for production runs.",
       "prefill": {
         "useApifyProxy": true,
         "apifyProxyGroups": ["RESIDENTIAL"]
