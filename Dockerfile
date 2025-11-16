@@ -6,7 +6,8 @@ FROM apify/actor-node:20
 COPY package*.json ./
 
 # Install ALL dependencies (including devDependencies for build)
-RUN npm install
+# Use --include=dev to ensure devDependencies are installed even if NODE_ENV=production
+RUN npm install --include=dev
 
 # Copy source code
 COPY . ./
