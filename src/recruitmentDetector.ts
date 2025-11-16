@@ -22,8 +22,14 @@ const RECRUITMENT_KEYWORDS = [
     'staffing',
     'talentschmiede',
     'jobvermittlung',
+    'executive search',
+    'talent acquisition',
+    'recruitment service',
+    'outsourcing',
+    'contractor',
+    'freelance vermittlung',
 
-    // Common phrases
+    // Common phrases indicating agency work
     'im auftrag',
     'für unseren kunden',
     'für einen kunden',
@@ -33,9 +39,18 @@ const RECRUITMENT_KEYWORDS = [
     'namhaftes unternehmen',
     'bekanntes unternehmen',
     'anonymisiert',
+    'vertraulich',
+    'diskretion',
+    'unser kunde',
+    'unser mandant',
+    'beim kunden vor ort',
+    'direktvermittlung',
+    'fremdpersonal',
+    'arbeitnehmerverleih',
 
     // Legal forms
     'arbeitnehmerüberlassungserlaubnis',
+    'anü erlaubnis',
 ];
 
 /**
@@ -53,6 +68,10 @@ const RECRUITMENT_AGENCIES = [
     'amadeus fire',
     'robert walters',
     'page personnel',
+    'kienbaum',
+    'Page Group',
+    'Morgan Philips',
+    'Alexander Mann Solutions',
 
     // German agencies
     'orizon',
@@ -68,14 +87,35 @@ const RECRUITMENT_AGENCIES = [
     'k&k personalberatung',
     'quantum',
     'aviation',
+    'I.K. Hofmann',
+    'DIS AG',
+    'START NRW',
+    'Hofmann Personal',
+    'Trenkwalder',
+    'PERMACON',
+    'Progressive Recruitment',
+    'Huxley',
+    'Computer Futures',
+    'Frank Recruitment Group',
+    'EPOS',
+    'ARTS',
+    'SOLCOM',
+    'TARUK',
+    'HAYS',
 
     // Common patterns
     'headhunting',
     'executive search',
-    'talent',
+    'talent solutions',
     'recruitment gmbh',
     'personal gmbh',
     'zeitarbeit gmbh',
+    'personalberatung gmbh',
+    'personalvermittlung gmbh',
+    'staffing',
+    'recruiting',
+    'hr-consulting',
+    'personalservice',
 ];
 
 /**

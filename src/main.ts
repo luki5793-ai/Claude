@@ -178,31 +178,54 @@ await Actor.main(async () => {
         log.info(`Enriching contacts for ${uniqueCompanies.length} unique companies...`);
 
         let enrichedCount = 0;
-        for (const company of uniqueCompanies) {
-            try {
-                // Find all jobs for this company
-                const companyJobs = allJobs.filter(job => job.company === company);
 
-                // Enrich contact data
-                const { contacts, website } = await enrichJobWithContacts(company, contactConfig);
+        // Process companies in parallel batches for better performance
+        const BATCH_SIZE = 5; // Process 5 companies at a time
+        const batches: string[][] = [];
 
-                // Update all jobs for this company with contact data
-                for (const job of companyJobs) {
-                    job.contacts = contacts;
-                    job.companyWebsite = website;
-                }
+        for (let i = 0; i < uniqueCompanies.length; i += BATCH_SIZE) {
+            batches.push(uniqueCompanies.slice(i, i + BATCH_SIZE));
+        }
 
-                if (contacts.length > 0) {
+        log.info(`Processing ${batches.length} batches of up to ${BATCH_SIZE} companies in parallel...`);
+
+        for (const batch of batches) {
+            // Process batch in parallel
+            const batchResults = await Promise.allSettled(
+                batch.map(async (company) => {
+                    try {
+                        // Find all jobs for this company
+                        const companyJobs = allJobs.filter(job => job.company === company);
+
+                        // Enrich contact data
+                        const { contacts, website } = await enrichJobWithContacts(company, contactConfig);
+
+                        // Update all jobs for this company with contact data
+                        for (const job of companyJobs) {
+                            job.contacts = contacts;
+                            job.companyWebsite = website;
+                        }
+
+                        return { company, success: contacts.length > 0 };
+                    } catch (error) {
+                        log.warning(`Failed to enrich contacts for ${company}`, { error });
+                        return { company, success: false };
+                    }
+                })
+            );
+
+            // Count successes
+            batchResults.forEach(result => {
+                if (result.status === 'fulfilled' && result.value.success) {
                     enrichedCount++;
                 }
+            });
 
-                log.info(`Enriched ${enrichedCount}/${uniqueCompanies.length} companies`);
+            log.info(`Progress: ${enrichedCount}/${uniqueCompanies.length} companies enriched`);
 
-                // Rate limiting to avoid overwhelming servers
-                await new Promise(resolve => setTimeout(resolve, 3000));
-
-            } catch (error) {
-                log.warning(`Failed to enrich contacts for ${company}`, { error });
+            // Reduced delay between batches (from 3s to 1s)
+            if (batches.indexOf(batch) < batches.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
 

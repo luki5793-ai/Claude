@@ -16,6 +16,7 @@ export const InputSchema = z.object({
     includeRemote: z.boolean().default(true),
     excludeWords: z.array(z.string()).default([]),
     excludeRecruitmentAgencies: z.boolean().default(true), // Exclude recruitment agencies by default
+    maxJobAgeDays: z.number().int().min(1).max(365).default(90), // Filter jobs by age (default: 90 days)
     enableContactEnrichment: z.boolean().default(true), // Enable contact data enrichment
     maxContactsPerCompany: z.number().int().min(1).max(5).default(2), // Max contacts per company
     requestTimeout: z.number().int().min(5000).max(120000).default(30000),

@@ -265,3 +265,21 @@ export function normalizeUrl(url: string): string {
     }
     return url;
 }
+
+/**
+ * Check if a job is within the last N days
+ */
+export function isJobRecent(publishedDate: string, maxDaysOld: number = 90): boolean {
+    try {
+        const jobDate = new Date(publishedDate);
+        const now = new Date();
+        const diffMs = now.getTime() - jobDate.getTime();
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+        return diffDays <= maxDaysOld;
+    } catch (error) {
+        // If date parsing fails, assume it's recent to avoid filtering out valid jobs
+        log.warning(`Failed to parse date: ${publishedDate}`, { error });
+        return true;
+    }
+}

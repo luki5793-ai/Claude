@@ -68,33 +68,78 @@ export interface ContactEnrichmentConfig {
  */
 async function findCompanyWebsite(companyName: string, timeout: number): Promise<string | undefined> {
     try {
-        const searchQuery = encodeURIComponent(`${companyName} Deutschland offizielle website`);
-        const searchUrl = `https://www.google.com/search?q=${searchQuery}`;
+        // Try multiple search strategies
+        const searchStrategies = [
+            `${companyName} offizielle website`,
+            `${companyName} Deutschland`,
+            `${companyName} karriere`,
+            companyName,
+        ];
 
-        const response = await gotScraping({
-            url: searchUrl,
-            headers: {
-                'User-Agent': getUserAgent(),
-                'Accept': 'text/html',
-                'Accept-Language': 'de-DE,de;q=0.9',
-            },
-            timeout: { request: timeout },
-            http2: true,
-            throwHttpErrors: false,
-        });
+        for (const searchTerm of searchStrategies) {
+            try {
+                const searchQuery = encodeURIComponent(searchTerm);
+                const searchUrl = `https://www.google.com/search?q=${searchQuery}`;
 
-        if (response.statusCode !== 200) {
-            return undefined;
-        }
+                const response = await gotScraping({
+                    url: searchUrl,
+                    headers: {
+                        'User-Agent': getUserAgent(),
+                        'Accept': 'text/html',
+                        'Accept-Language': 'de-DE,de;q=0.9',
+                    },
+                    timeout: { request: Math.min(timeout, 15000) }, // Max 15s per attempt
+                    http2: true,
+                    throwHttpErrors: false,
+                });
 
-        const $ = cheerio.load(response.body);
+                if (response.statusCode !== 200) {
+                    continue;
+                }
 
-        // Try to find the first organic result
-        const firstLink = $('div.g a[href^="http"]').first().attr('href');
+                const $ = cheerio.load(response.body);
 
-        if (firstLink && !firstLink.includes('google.com') && !firstLink.includes('facebook.com') && !firstLink.includes('linkedin.com')) {
-            log.debug(`Found company website: ${firstLink} for ${companyName}`);
-            return firstLink;
+                // Try multiple selectors for finding links
+                const linkSelectors = [
+                    'div.g a[href^="http"]',
+                    'a[href^="http"]',
+                    'cite',
+                ];
+
+                for (const selector of linkSelectors) {
+                    const elements = $(selector);
+
+                    for (let i = 0; i < Math.min(elements.length, 5); i++) {
+                        const element = elements.eq(i);
+                        let link = element.attr('href') || element.text();
+
+                        if (!link) continue;
+
+                        // Clean up the link
+                        if (!link.startsWith('http')) {
+                            link = 'https://' + link;
+                        }
+
+                        // Filter out unwanted domains
+                        const excludedDomains = [
+                            'google.com', 'facebook.com', 'linkedin.com',
+                            'xing.com', 'indeed.com', 'stepstone.de',
+                            'youtube.com', 'twitter.com', 'instagram.com'
+                        ];
+
+                        if (!excludedDomains.some(domain => link.includes(domain))) {
+                            log.debug(`Found company website: ${link} for ${companyName}`);
+                            return link;
+                        }
+                    }
+                }
+
+                // Small delay between search attempts
+                await sleep(500);
+            } catch (error) {
+                log.debug(`Search attempt failed for "${searchTerm}"`, { error });
+                continue;
+            }
         }
 
         return undefined;

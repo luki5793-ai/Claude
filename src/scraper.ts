@@ -26,6 +26,7 @@ import {
     sleep,
     randomDelay,
     logError,
+    isJobRecent,
 } from './utils.js';
 import { detectRecruitmentAgency, extractPostalCode, matchesPostalCodeFilter } from './recruitmentDetector.js';
 import { scrapeStepStone } from './stepStoneScraper.js';
@@ -472,6 +473,14 @@ export class GoogleJobsScraper {
      */
     private filterJobs(jobs: ScrapedJob[]): ScrapedJob[] {
         let filtered = jobs;
+
+        // Filter by published date (configurable max age)
+        const maxJobAgeDays = this.input.maxJobAgeDays || 90;
+        const beforeDateFilter = filtered.length;
+        filtered = filtered.filter(job => isJobRecent(job.publishedDate, maxJobAgeDays));
+        if (beforeDateFilter > filtered.length) {
+            log.info(`Date filter (${maxJobAgeDays} days): ${beforeDateFilter} -> ${filtered.length} jobs`);
+        }
 
         // Filter by postal code if specified
         if (this.input.postalCodeFilter && this.input.postalCodeFilter.length > 0) {
