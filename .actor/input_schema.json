@@ -93,7 +93,7 @@
     "enableContactEnrichment": {
       "title": "Enable Contact Enrichment",
       "type": "boolean",
-      "description": "Automatically research and extract contact information (names, emails, phones) for IT managers and HR decision-makers. Processes 5 companies in parallel for faster performance.",
+      "description": "REQUIRED: This actor ONLY exports jobs with verified contact persons (name + email). Automatically researches IT managers and HR decision-makers. Processes 5 companies in parallel. If disabled, NO jobs will be exported!",
       "default": true
     },
     "maxContactsPerCompany": {

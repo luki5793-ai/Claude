@@ -159,29 +159,47 @@ async function scrapeCompanyContacts(
     const contacts: ContactPerson[] = [];
 
     try {
-        // First, try to find Impressum or Contact page
+        // Normalize website URL
+        let baseUrl = websiteUrl;
+        if (!baseUrl.startsWith('http')) {
+            baseUrl = 'https://' + baseUrl;
+        }
+        // Remove trailing slash
+        baseUrl = baseUrl.replace(/\/$/, '');
+
+        // Comprehensive list of pages where contacts might be found
         const contactPageUrls = [
-            `${websiteUrl}/impressum`,
-            `${websiteUrl}/kontakt`,
-            `${websiteUrl}/contact`,
-            `${websiteUrl}/team`,
-            `${websiteUrl}/about`,
-            `${websiteUrl}/ueber-uns`,
+            `${baseUrl}/impressum`,
+            `${baseUrl}/kontakt`,
+            `${baseUrl}/contact`,
+            `${baseUrl}/team`,
+            `${baseUrl}/about`,
+            `${baseUrl}/ueber-uns`,
+            `${baseUrl}/about-us`,
+            `${baseUrl}/unternehmen`,
+            `${baseUrl}/company`,
+            `${baseUrl}/karriere`,
+            `${baseUrl}/career`,
+            `${baseUrl}/jobs`,
+            `${baseUrl}/ansprechpartner`,
+            `${baseUrl}/mitarbeiter`,
+            `${baseUrl}`, // Try main page too
         ];
 
         for (const pageUrl of contactPageUrls) {
             if (contacts.length >= config.maxContactsPerCompany) break;
 
             try {
-                await sleep(1000); // Respectful delay
+                await sleep(800); // Respectful delay
 
                 const response = await gotScraping({
                     url: pageUrl,
                     headers: {
                         'User-Agent': getUserAgent(),
                         'Accept': 'text/html',
+                        'Accept-Language': 'de-DE,de;q=0.9',
                     },
-                    timeout: { request: config.timeout },
+                    timeout: { request: Math.min(config.timeout, 10000) }, // Max 10s per page
                     http2: true,
                     throwHttpErrors: false,
                 });
@@ -189,11 +207,24 @@ async function scrapeCompanyContacts(
                 if (response.statusCode !== 200) continue;
 
                 const $ = cheerio.load(response.body);
-                const pageText = $('body').text().toLowerCase();
+                const pageText = $('body').text();
 
                 // Look for IT manager or HR keywords
                 const foundContacts = extractContactsFromPage($, pageText);
-                contacts.push(...foundContacts);
+
+                // Add unique contacts only
+                for (const contact of foundContacts) {
+                    const isDuplicate = contacts.some(c =>
+                        c.email === contact.email ||
+                        (c.firstName === contact.firstName && c.lastName === contact.lastName)
+                    );
+
+                    if (!isDuplicate) {
+                        contacts.push(contact);
+                    }
+
+                    if (contacts.length >= config.maxContactsPerCompany) break;
+                }
 
             } catch (error) {
                 log.debug(`Failed to scrape ${pageUrl}`, { error });
@@ -215,51 +246,124 @@ function extractContactsFromPage($: cheerio.CheerioAPI, pageText: string): Conta
 
     // Look for email addresses
     const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
-    const emails = $('body').text().match(emailRegex) || [];
+    const emailMatches = pageText.match(emailRegex) || [];
+
+    // Filter out common non-personal emails
+    const emails = emailMatches.filter(email => {
+        const emailLower = email.toLowerCase();
+        return !emailLower.startsWith('info@') &&
+               !emailLower.startsWith('kontakt@') &&
+               !emailLower.startsWith('contact@') &&
+               !emailLower.startsWith('office@') &&
+               !emailLower.startsWith('mail@') &&
+               !emailLower.startsWith('support@') &&
+               !emailLower.startsWith('service@') &&
+               !emailLower.includes('noreply') &&
+               !emailLower.includes('no-reply');
+    });
 
     // Look for phone numbers (German format)
-    const phoneRegex = /(?:\+49|0049|0)\s*\d{2,5}\s*\d{3,}\s*\d{3,}/g;
-    const phones = $('body').text().match(phoneRegex) || [];
+    const phoneRegex = /(?:\+49|0049|0)\s*\d{2,5}[\s\-/]*\d{3,}[\s\-/]*\d{3,}/g;
+    const phones = pageText.match(phoneRegex) || [];
 
-    // Try to find names with positions
+    // Enhanced name patterns - try to find names with positions or near IT/HR keywords
     const namePatterns = [
-        /(?:herr|frau)\s+([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß]+)/gi,
-        /([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß]+)(?:,|\s+-\s+)(?:IT-Leiter|CIO|CTO|HR-Leiter|Personalleiter)/gi,
+        // Herr/Frau with name
+        /(?:herr|frau)\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+von|\s+de)?)\s+([A-ZÄÖÜ][a-zäöüß]+)/gi,
+        // Name with position (Title - Name)
+        /([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß]+)\s*[-–,]\s*(?:IT-Leiter|CIO|CTO|HR-Leiter|Personalleiter|Geschäftsführer|Director|Manager)/gi,
+        // Position: Name format
+        /(?:IT-Leiter|CIO|CTO|HR-Leiter|Personalleiter|Geschäftsführer):\s*(?:herr|frau)?\s*([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß]+)/gi,
+        // Email with name nearby (within 50 chars)
     ];
 
-    for (const pattern of namePatterns) {
-        const matches = pageText.matchAll(pattern);
-        for (const match of matches) {
-            if (contacts.length >= 2) break;
+    // Try structured data first (vCard, schema.org)
+    $('[itemtype*="Person"], .vcard, .person, .team-member, .staff-member').each((_, element) => {
+        const $person = $(element);
 
-            const salutation = match[0].toLowerCase().includes('herr') ? 'Herr' :
-                             match[0].toLowerCase().includes('frau') ? 'Frau' : 'N/A';
-            const firstName = match[1] || 'N/A';
-            const lastName = match[2] || 'N/A';
+        const firstName = $person.find('[itemprop="givenName"], .given-name, .first-name').text().trim() ||
+                         $person.find('.name').text().split(' ')[0]?.trim();
+        const lastName = $person.find('[itemprop="familyName"], .family-name, .last-name').text().trim() ||
+                        $person.find('.name').text().split(' ').slice(1).join(' ').trim();
+        const email = $person.find('[itemprop="email"], a[href^="mailto:"], .email').text().trim() ||
+                     $person.find('a[href^="mailto:"]').attr('href')?.replace('mailto:', '');
+        const phone = $person.find('[itemprop="telephone"], .phone, .tel').text().trim();
+        const position = $person.find('[itemprop="jobTitle"], .title, .position, .role').text().trim();
 
-            // Determine position based on context
-            let position = 'N/A';
-            const contextText = match[0].toLowerCase();
-
-            if (IT_MANAGER_KEYWORDS.some(kw => contextText.includes(kw))) {
-                position = 'IT-Leiter';
-            } else if (HR_KEYWORDS.some(kw => contextText.includes(kw))) {
-                position = 'Personalentscheider';
-            }
-
+        if (firstName && lastName && email && firstName !== 'N/A' && lastName !== 'N/A') {
             contacts.push({
-                salutation,
+                salutation: 'N/A',
                 firstName,
                 lastName,
-                email: emails[0] || undefined,
-                phone: phones[0] || undefined,
-                position,
-                source: 'Company Website',
+                email,
+                phone: phone || undefined,
+                position: position || 'N/A',
+                source: 'Company Website (Structured Data)',
             });
+        }
+    });
+
+    // Try pattern matching if no structured data found
+    if (contacts.length === 0) {
+        for (const pattern of namePatterns) {
+            const matches = [...pageText.matchAll(pattern)];
+
+            for (const match of matches) {
+                if (contacts.length >= 5) break; // Collect more candidates
+
+                const salutation = match[0].toLowerCase().includes('herr') ? 'Herr' :
+                                 match[0].toLowerCase().includes('frau') ? 'Frau' : 'N/A';
+                const firstName = match[1]?.trim();
+                const lastName = match[2]?.trim();
+
+                if (!firstName || !lastName || firstName.length < 2 || lastName.length < 2) continue;
+
+                // Determine position based on context
+                let position = 'N/A';
+                const contextText = match[0].toLowerCase();
+
+                if (IT_MANAGER_KEYWORDS.some(kw => contextText.includes(kw))) {
+                    position = 'IT-Leiter';
+                } else if (HR_KEYWORDS.some(kw => contextText.includes(kw))) {
+                    position = 'Personalentscheider';
+                } else {
+                    // Try to find position in surrounding text
+                    const matchIndex = pageText.indexOf(match[0]);
+                    const surroundingText = pageText.substring(Math.max(0, matchIndex - 100), matchIndex + 200).toLowerCase();
+
+                    if (IT_MANAGER_KEYWORDS.some(kw => surroundingText.includes(kw))) {
+                        position = 'IT-Leiter';
+                    } else if (HR_KEYWORDS.some(kw => surroundingText.includes(kw))) {
+                        position = 'Personalentscheider';
+                    }
+                }
+
+                // Try to find email near this name
+                const nameIndex = pageText.indexOf(match[0]);
+                const nearbyText = pageText.substring(Math.max(0, nameIndex - 200), nameIndex + 200);
+                const nearbyEmails = nearbyText.match(emailRegex) || [];
+                const relevantEmail = nearbyEmails.find(e => emails.includes(e));
+
+                contacts.push({
+                    salutation,
+                    firstName,
+                    lastName,
+                    email: relevantEmail || emails[0] || undefined,
+                    phone: phones[0] || undefined,
+                    position,
+                    source: 'Company Website',
+                });
+            }
         }
     }
 
-    return contacts;
+    // Filter out invalid contacts (those without real names or emails)
+    return contacts.filter(c =>
+        c.firstName && c.lastName &&
+        c.firstName !== 'N/A' && c.lastName !== 'N/A' &&
+        c.firstName.length > 1 && c.lastName.length > 1 &&
+        c.email && c.email.includes('@')
+    );
 }
 
 /**
@@ -291,18 +395,6 @@ function extractContactsFromPage($: cheerio.CheerioAPI, pageText: string): Conta
 // }
 
 /**
- * Extract domain from company website URL
- */
-function extractDomain(websiteUrl: string): string {
-    try {
-        const url = new URL(websiteUrl);
-        return url.hostname.replace('www.', '');
-    } catch {
-        return websiteUrl.replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0];
-    }
-}
-
-/**
  * Main function to enrich job with contact information
  */
 export async function enrichJobWithContacts(
@@ -326,33 +418,11 @@ export async function enrichJobWithContacts(
             }
         }
 
-        // Step 3: If no contacts found and email generation is enabled, create placeholder contacts
-        if (contacts.length === 0 && config.enableEmailGeneration && website) {
-            const domain = extractDomain(website);
-
-            // Create placeholder contacts for IT manager and HR
-            const placeholderContacts: ContactPerson[] = [
-                {
-                    salutation: 'N/A',
-                    firstName: 'N/A',
-                    lastName: 'N/A',
-                    email: `it-leitung@${domain}`,
-                    phone: undefined,
-                    position: 'IT-Leiter',
-                    source: 'Generated (not verified)',
-                },
-                {
-                    salutation: 'N/A',
-                    firstName: 'N/A',
-                    lastName: 'N/A',
-                    email: `personal@${domain}`,
-                    phone: undefined,
-                    position: 'Personalentscheider',
-                    source: 'Generated (not verified)',
-                },
-            ];
-
-            contacts.push(...placeholderContacts.slice(0, config.maxContactsPerCompany));
+        // Step 3: Do NOT generate placeholder contacts - only real contacts are acceptable
+        // If we can't find real contact information, we should return empty array
+        // This ensures only jobs with verified contacts are included in results
+        if (contacts.length === 0) {
+            log.debug(`No real contacts found for ${companyName}, skipping placeholder generation`);
         }
 
     } catch (error) {

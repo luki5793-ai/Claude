@@ -283,3 +283,28 @@ export function isJobRecent(publishedDate: string, maxDaysOld: number = 90): boo
         return true;
     }
 }
+
+/**
+ * Check if a contact person has valid, complete information
+ * Valid means: real name (not N/A) and at least an email address
+ */
+export function isValidContact(contact: any): boolean {
+    if (!contact) return false;
+
+    // Check if firstName and lastName are present and not "N/A"
+    const hasValidName = contact.firstName &&
+                        contact.lastName &&
+                        contact.firstName !== 'N/A' &&
+                        contact.lastName !== 'N/A' &&
+                        contact.firstName.length > 1 &&
+                        contact.lastName.length > 1;
+
+    // Check if email is present and looks valid
+    const hasValidEmail = contact.email &&
+                         contact.email !== 'N/A' &&
+                         contact.email.includes('@') &&
+                         !contact.email.startsWith('it-leitung@') && // Exclude generated placeholder emails
+                         !contact.email.startsWith('personal@');
+
+    return hasValidName && hasValidEmail;
+}

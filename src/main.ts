@@ -11,6 +11,7 @@ import {
     validateInput,
     generateSearchQueries,
     formatDuration,
+    isValidContact,
 } from './utils.js';
 import {
     enrichJobWithContacts,
@@ -231,10 +232,33 @@ await Actor.main(async () => {
 
         log.info(`✅ Contact enrichment completed: ${enrichedCount}/${uniqueCompanies.length} companies enriched`);
 
-        // Update dataset with enriched jobs
+        // CRITICAL: Filter out jobs without valid contact information
+        // Only keep jobs that have at least one valid contact with name AND email
+        const jobsBeforeContactFilter = allJobs.length;
+        const jobsWithValidContacts = allJobs.filter(job => {
+            if (!job.contacts || job.contacts.length === 0) {
+                return false;
+            }
+
+            // Check if at least one contact has valid information (real name + email)
+            return job.contacts.some(contact => isValidContact(contact));
+        });
+
+        log.info(`📧 Contact validation filter: ${jobsBeforeContactFilter} -> ${jobsWithValidContacts.length} jobs`);
+        log.info(`   Removed ${jobsBeforeContactFilter - jobsWithValidContacts.length} jobs without valid contact information`);
+
+        // Replace allJobs with filtered list
+        allJobs.length = 0;
+        allJobs.push(...jobsWithValidContacts);
+
+        // Update dataset with enriched and filtered jobs
         const datasetClient = await Actor.openDataset();
         await datasetClient.drop(); // Clear old data
-        await datasetClient.pushData(allJobs); // Push enriched data
+        await datasetClient.pushData(allJobs); // Push enriched and filtered data
+    } else {
+        // If contact enrichment is disabled, warn user and filter out all jobs
+        log.warning('⚠️ Contact enrichment is DISABLED. This actor requires contact information, so NO jobs will be exported!');
+        allJobs.length = 0; // Clear all jobs since we need contact info
     }
 
     // Export to Excel/CSV
